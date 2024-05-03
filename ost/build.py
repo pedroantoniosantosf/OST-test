@@ -426,7 +426,7 @@ class Builder():
             atoms.set_pbc([1, 1, 0])
             atoms.center(vacuum, axis=2)
             # move atoms upward
-            #atoms.translate([0, 0, vacuum-separation])
+            atoms.translate([0, 0, vacuum-separation])
 
         self.ase_slab = atoms
         self.ase_slab_mol_list = mol_list
@@ -475,7 +475,7 @@ class Builder():
         return ase_struc
 
 
-    def cut_layers(self, atoms, mol_list, layers, tol=None):
+    def cut_layers(self, atoms, mol_list, layers, tol=1e-2):
         """
         cut the supercell structure by number of molecular layers
         here we ignore the first layer to avoid partial termination
@@ -494,12 +494,17 @@ class Builder():
         ids_to_count = []
         N_layer = 0
         current_z = centers[ids_sorted[0], 2]
-
+        #print(ids_sorted)
+        #print(N_layer,current_z)
+        
         for id in ids_sorted:
             z = centers[id, 2]
             if z - current_z < tol: #same layer
                 if N_layer > 0:
+         #           print('same layer id', id)
                     ids_to_count.append(id)
+         #       else:
+         #           print('first layer',id)
             else: # new layer
                 N_layer += 1
                 if N_layer > layers:
@@ -507,7 +512,7 @@ class Builder():
                 else:
                     ids_to_count.append(id)
                     current_z = z
-                    #print('Layer', N_layer, current_z)
+         #           print('next Layer', N_layer, current_z)
 
         if N_layer < layers:
             msg = 'Can cut only {:d}/{:d} layers'.format(N_layer, layers)
@@ -540,6 +545,10 @@ class Builder():
             f_border_ids = [j for sub in border_ids for j in sub]
         else:
             f_border_ids = []
+        if fix_ids is not None:
+            f_fix_ids = [j for sub in fix_ids for j in sub]
+        else:
+            f_fix_ids = []
         centers = self.get_molecular_centers(atoms, mol_list)
         centers = np.dot(centers, atoms.cell.array)
         with open(filename, 'w') as of:
@@ -567,7 +576,7 @@ class Builder():
                 of.write("ITEM: ATOMS id type x y z \n")
                 for i, center in enumerate(centers):
                     id = i+1
-                    if id in fix_ids:
+                    if id in f_fix_ids:
                         mtype = 2
                     elif id in f_border_ids:
                         mtype = 1
@@ -901,16 +910,18 @@ class Builder():
             f.write('variable patm equal {:12.3f}\n'.format(_task['pressure']))
             f.write('variable dt equal {:12.3f}\n'.format(_task['timestep']))
             f.write('variable trelax equal {:12.3f}\n'.format(_task['timerelax']))
-            f.write('variable deform_steps equal {:12.3f}\n'.format(_task['deform_steps']))
-            f.write('variable ele_string string "{:s}"\n'.format(_task['ele_string']))
+            #f.write('variable ele_string string "{:s}"\n'.format(_task['ele_string']))
 
             if _task['mode'] == 'uniaxial':
+                f.write('variable deform_steps equal {:12.3f}\n'.format(_task['deform_steps']))
                 f.write('variable strain_total equal {:12.3f}\n'.format(_task['max_strain']))
                 f.write('variable strainrate equal {:2e}\n'.format(_task['rate']))
                 f.write('variable direction string {:s}\n'.format(_task['direction']))
             else: # 3pf bending
-                f.write('variable ih equal {:.3f}\n'.format(_task['indenter_height']))
+                #f.write('variable ih equal {:.3f}\n'.format(_task['indenter_height']))
                 f.write('variable id equal {:.3f}\n'.format(_task['indenter_distance']))
+                #f.write('variable il equal {:.3f}\n'.format(_task['indenter_height_bottom']))
+                f.write('variable A equal {:.3f}\n'.format(_task['border_distance']))
                 f.write('variable vel equal {:2e}\n'.format(_task['indenter_rate']))
                 f.write('variable R equal {:.3f}\n'.format(_task['indenter_radius']))
                 f.write('variable K equal {:.3f}\n'.format(_task['indenter_k']))
@@ -925,10 +936,10 @@ class Builder():
                     for b in _task['border_mols']:
                         for _b in b:
                             f.write('{:d} '.format(_b))
-                if _task['fix_mols'] is not None:
-                    f.write('\ngroup fix-bord molecule ')
-                    for b in _task['fix_mols']:
-                        f.write('{:d} '.format(b))
+                #if _task['fix_mols'] is not None:
+                #    f.write('\ngroup fix-bord molecule ')
+                #    for b in _task['fix_mols']:
+                #        f.write('{:d} '.format(b))
                     f.write('\n')
 
                 # update box to make sure that xlo is smaller than indenter depth
@@ -943,7 +954,7 @@ class Builder():
                 f.write('\n')
 
             for line in lines:
-                if not line.startswith('#variable'):
+                if not line.startswith(('#variable', '#include')):
                     if keywords is not None and line.find(keywords) > 0:
                         line = line.replace(keywords, '')
                     f.write(line)
