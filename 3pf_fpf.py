@@ -54,7 +54,7 @@ for d in data:
 
     bu.set_slab(bu.xtal, bu.xtal_mol_list, matrix=matrix, dim=dim,layers=layers, 
                 vacuum = task['indenter_distance'] * 1.2, #make sure the z-axis is long
-                separation = task['indenter_radius'] * 2 + task['indenter_buffer'], 
+                separation = task['indenter_radius'] + task['indenter_buffer'],  # sepration between top and sample
                 orthogonality=True)
     print('Supercell:  ', bu.ase_slab.get_cell_lengths_and_angles())
 
